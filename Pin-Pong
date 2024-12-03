@@ -1,0 +1,159 @@
+#Создай собственный Шутер!
+from pygame import *
+from random import randint
+from time import time as timer
+
+lost = 0
+score = 0
+font.init()
+font1 = font.SysFont("Arial", 80)
+win = font1.render('Ты выйграл!', True, (255, 255, 255))
+lose = font1.render('Ты проиграл!', True, (180, 0, 0))
+
+font2 = font.Font(None,36)
+
+class GameSprite(sprite.Sprite):
+    def __init__(self, player_image, player_x, player_y, size_x, size_y, player_speed):
+        super().__init__()
+        self.image = transform.scale(image.load(player_image), (size_x, size_y))
+        self.speed = player_speed
+        self.rect = self.image.get_rect()
+        self.rect.x = player_x
+        self.rect.y = player_y
+    def reset(self):
+        window.blit(self.image, (self.rect.x, self.rect.y))
+
+class Player(GameSprite):
+    def update(self):
+       keys = key.get_pressed()
+       if keys[K_LEFT] and self.rect.x > 5:
+           self.rect.x -= self.speed
+       if keys[K_RIGHT] and self.rect.x < win_width - 80:
+           self.rect.x += self.speed
+  
+    def fire(self):
+       bullet=Bullet('bulet.png', self.rect.centerx, self.rect.top, 15, 20, -15)
+       bullets.add(bullet)
+       
+       if self.rect.y < 0:
+            self.kill()
+
+
+class Enemy(GameSprite):
+   def update(self):
+       self.rect.y += self.speed
+       global lost
+
+       if self.rect.y > win_height:
+           self.rect.x = randint(80, win_width - 80)
+           self.rect.y = 0
+           lost = lost + 1
+
+class Bullet(GameSprite):
+   def update(self):
+       self.rect.y += self.speed
+       
+       if self.rect.y < 0:
+           self.kill()
+
+#создай окно игры 
+win_width = 700
+win_height = 500
+window = display.set_mode((win_width, win_height))
+display.set_caption("Шутер")
+clock = time.Clock()
+#задай фон сцены
+background = transform.scale(image.load("galaxy.jpg"), (win_width, win_height))
+
+#создай спрайты и размести их на сцене
+player = Player('rocket.png', 5, win_height - 110, 80, 100, 10)
+
+monsters = sprite.Group()
+for i in range(1, 6):
+    monster = Enemy('ufo.png', randint(80, win_width - 80), 0, 80, 50, randint(1, 5))
+    monsters.add(monster)
+
+asteroids = sprite.Group()
+for i in range(1, 4):
+    asteroid = Enemy('asteroid.png', randint(80, win_width - 80), 0, 80, 50, randint(1, 5))
+    asteroids.add(asteroid)
+
+bullets = sprite.Group()    
+
+finish = False
+rel_time = False
+
+mixer.init()
+mixer.music.load('space.ogg')
+fire_sound = mixer.Sound('fire.ogg')
+mixer.music.play()
+
+x1 = 60
+y1 = 400
+x2 = 300 
+y2 = 350
+game = True
+while game:
+    for e in event.get():
+        if e.type == QUIT:
+            game = False
+        
+        elif e.type == KEYDOWN:
+            if e.key == K_SPACE:
+                if num_fire < 3 and rel_time == False:
+                    num_fire +=1
+                    fire_sound.play()
+                    player.fire()
+                if num_fire >= 5 and rel_time == False:
+                    last_time = time()# засекаем время
+                    rel_time = True
+     
+
+    if not finish:
+        window.blit(background,(0, 0))
+        player.update()
+        monsters.update()
+        asteroids.update()
+        bullets.update()
+      
+        player.reset()
+        monsters.draw(window)
+        asteroids.draw(window)
+        bullets.draw(window)
+
+        #ПЕРЕЗАРЯДКА
+        if rel_time == True:
+            now_time = timer() #считываем время
+       
+            if now_time - last_time < 3: #пока не прошло 3 секунды выводим информацию о перезарядке
+                reload = font2.render('Wait, reload...', 1, (150, 0, 0))
+                window.blit(reload, (260, 460))
+            else:
+                num_fire = 0   #обнуляем счётчик пуль
+                rel_time = False #сбрасываем флаг перезарядки
+
+        collides = sprite.groupcollide(monsters, bullets, True, True)
+        for c in collides:
+           #этот цикл повторится столько раз, сколько монстров подбито
+            score = score + 1
+            monster = Enemy("ufo.png", randint(80, win_width - 80), 0, 80, 50, randint(1, 5))
+            monsters.add(monster)
+
+
+        if sprite.spritecollide(player, monsters, False) or lost >= 10:
+            finish = True #проиграли, ставим фон и больше не управляем спрайтами.
+            window.blit(lose, (100, 200))
+
+        if sprite.spritecollide(player, asteroids, False):
+            finish = True #проиграли, ставим фон и больше не управляем спрайтами.
+            window.blit(lose, (100, 200))
+   
+        text_lose = font2.render("Пропущено: " + str(lost), 1, (255, 255, 255))
+        window.blit(text_lose, (10, 20))
+        
+ 
+        text_lose = font2.render("Счет: " + str(score), 1, (255, 255, 255))
+        window.blit(text_lose, (10, 50))
+        display.update()
+
+    time.delay(50)
